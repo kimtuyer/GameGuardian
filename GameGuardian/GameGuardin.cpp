@@ -236,7 +236,6 @@ void packet_Reset(pcap_t* adhandle)
 		fprintf(stderr, "\nError sending the packet: %s\n", pcap_geterr(adhandle));
 	}
 
-	pcap_close(adhandle);
 
 
 }
