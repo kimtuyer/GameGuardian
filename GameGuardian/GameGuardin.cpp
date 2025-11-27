@@ -174,7 +174,7 @@ unsigned short CalcChecksumTcp(IpHeader* pIpHeader, TcpHeader* pTcpHeader)
 	return (USHORT)~(dwSum & 0x0000FFFF);
 }
 
-void packet_Reset(pcap_t* adhandle)
+void packet_Reset(const TcpHeader* pTcp,pcap_t* adhandle)
 {
 	unsigned char frameData[1514] = { 0 };
 	int msgSize = 0;
@@ -213,9 +213,9 @@ void packet_Reset(pcap_t* adhandle)
 	TcpHeader* pTcpHeader =
 		(TcpHeader*)(frameData + sizeof(EtherHeader) + ipHeaderLen);
 
-	pTcpHeader->srcPort = htons(8011); //반드시 일치
+	pTcpHeader->srcPort = htons(ntohs(pTcp->srcPort)); //반드시 일치
 	pTcpHeader->dstPort = htons(25000);
-	pTcpHeader->seq = htonl(0x005f062f); //반드시 일치
+	pTcpHeader->seq = (pTcp->seq); // 반드시 일치 , pTcp->seq 값은 이미 Net-order 순서이므로 변환없이 그대로 복사
 	pTcpHeader->ack = 0;
 	pTcpHeader->data = 0x50;
 	pTcpHeader->flags = 0x04; //RST
@@ -268,7 +268,7 @@ void packet_detect(pcap_t* adhandle)
 
 			if (pIpHeader->protocol != 6)
 				return;*/
-
+			
 			int ipHeaderLen = (pIpHeader->verIhl & 0x0F) * 4;
 			TcpHeader* pTcp =
 				(TcpHeader*)(packet.m_pkt_data + sizeof(EtherHeader) + ipHeaderLen);
@@ -290,16 +290,17 @@ void packet_detect(pcap_t* adhandle)
 			char* pPayload = (char*)(packet.m_pkt_data + sizeof(EtherHeader) +
 				ipHeaderLen + tcpHeaderSize);
 
+			int Segmentsize = ntohs(pIpHeader->length) - ipHeaderLen - tcpHeaderSize;
 			printf("Segment size: %d(Frame length: %d)\n",
-				ntohs(pIpHeader->length) - ipHeaderLen - tcpHeaderSize,
+				Segmentsize,
 				packet.m_pheader->len);
 
-			/*char szMessage[2048] = { 0 };
+		/*	char szMessage[2048] = { 0 };
 			memcpy_s(szMessage, sizeof(szMessage), pPayload,
 				ntohs(pIpHeader->length) - ipHeaderLen - tcpHeaderSize);
 			puts(szMessage);*/
-
-			packet_Reset(adhandle);
+			if(Segmentsize==0) //클라->서버 ,서버->클라, 클라->서버 ACK 보내는 마지막 패킷 캡쳐
+				packet_Reset(pTcp,adhandle);
 
 			/*char szMessage[2048] = { 0 };
 			memcpy_s(szMessage, sizeof(szMessage), pPayload,
@@ -325,12 +326,18 @@ void packet_handler(u_char* temp1,
 	if (pIpHeader->protocol != 6)
 		return;
 
+	
 	int ipHeaderLen = (pIpHeader->verIhl & 0x0F) * 4;
 	TcpHeader* pTcp =
 		(TcpHeader*)(pkt_data + sizeof(EtherHeader) + ipHeaderLen);
 
+	if (pTcp->flags != 0x010) // Flags 비트 값이 0x010 (ACK)일 경우에만 읽고 탐지
+		return;
+	//if (pIpHeader->id == 0x3412)
+	//	return; //툴 자신이 생성해 보낸 패킷은 제외!
+
 	//일단 내 포트폴리오 게임서버 포트로 설정 ,클라는 각각 당연히 포트가 다를것.
-	if (ntohs(pTcp->dstPort) != 25000) //ntohs(pTcp->srcPort) != 25000 &&
+	if (ntohs(pTcp->srcPort) != 25000 &&  ntohs(pTcp->dstPort) != 25000) //ntohs(pTcp->srcPort) != 25000 &&
 		return;
 
 
@@ -438,6 +445,8 @@ int main()
 	//	pcap_freealldevs(alldevs);
 	//	return -1;
 	//}
+
+
 	/* 1. pcap_open_live 대신 pcap_create로 핸들을 생성합니다. */
 	if ((adhandle = pcap_create(d->name, errbuf)) == NULL) {
 		fprintf(stderr, "\nUnable to create the adapter handle. %s\n", d->name);
@@ -477,7 +486,7 @@ int main()
 	}	/* start the capture */
 
 	////캡쳐한 패킷 버퍼에서 뽑아내 추출하는 스레드풀 생성
-	const int threadCnt = std::thread::hardware_concurrency();
+	const int threadCnt = 1;//std::thread::hardware_concurrency();
 	std::vector<thread> ThreadPool;
 	for (int i = 0; i < threadCnt; i++)
 		ThreadPool.push_back(thread(packet_detect, adhandle));
