@@ -10,3 +10,79 @@
 #include <queue>
 #include <set>
 #define __VER2__
+using namespace std;
+
+const int NUM_WORKER_THREADS = 8;
+const int TIME_WAIT = 1000;
+
+#pragma pack(push, 1)
+typedef struct EtherHeader {
+	unsigned char dstMac[6];
+	unsigned char srcMac[6];
+	unsigned short type;
+} EtherHeader;
+
+typedef struct IpHeader {
+	unsigned char verIhl;
+	unsigned char tos;
+	unsigned short length;
+	unsigned short id;
+	unsigned short fragOffset;
+	unsigned char ttl;
+	unsigned char protocol;
+	unsigned short checksum;
+	unsigned char srcIp[4];
+	unsigned char dstIp[4];
+} IpHeader;
+
+typedef struct TcpHeader {
+	unsigned short srcPort;
+	unsigned short dstPort;
+	unsigned int seq;
+	unsigned int ack;
+	unsigned char data;
+	unsigned char flags;
+	unsigned short windowSize;
+	unsigned short checksum;
+	unsigned short urgent;
+} TcpHeader;
+
+typedef struct UdpHeader {
+	unsigned short srcPort;
+	unsigned short dstPort;
+	unsigned short length;
+	unsigned short checksum;
+} UdpHeader;
+
+typedef struct PseudoHeader {
+	unsigned int srcIp;
+	unsigned int dstIp;
+	unsigned char zero;
+	unsigned char protocol;
+	unsigned short length;
+} PseudoHeader;
+
+typedef struct Packet {
+
+	struct pcap_pkthdr* m_pheader;
+	u_char* m_pkt_data;
+	Packet() :m_pheader(nullptr), m_pkt_data(nullptr)
+	{
+
+	}
+
+	Packet(struct pcap_pkthdr* header, u_char* pkt_data)
+	{
+		m_pheader = header;
+		m_pkt_data = pkt_data;
+	}
+
+};
+// 생산자(Producer)가 패킷 처리에 필요한 모든 '상태'를 담는 가방
+struct CaptureContext {
+	// 로컬 블랙리스트 (락 필요 없음, 생산자만 봄)
+	set<uint32_t> local_blacklist;
+	// 워커들에게서 차단 요청을 받을 피드백 큐 (스레드 안전)
+	//concurrency::concurrent_queue<uint32_t> feedback_queue;
+};
+#pragma pack(pop)
