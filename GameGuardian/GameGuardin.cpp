@@ -1,21 +1,20 @@
 #include <stdio.h>
-#include <pcap.h>
-#include <time.h>
+
 #include "define.h"
-#pragma comment(lib, "wpcap")
-#pragma comment(lib, "ws2_32")
-
-#include <tchar.h>
-#include <WinSock2.h>
-
+#include "Global.h"
+#include "PacketMonitor.h"
 mutex m1[NUM_WORKER_THREADS];
 vector<char*> Payloadlist;
 //vector<char*> PacketBuffer;
 vector<Packet>local_buffer;
 Concurrency::concurrent_queue<Packet> PacketBuffer;
 map<uint32_t, int> IPList;
+#ifdef __OOP__
+#else
 std::vector<map<uint32_t, pair<Packet,int>>> worker_queues;
 concurrency::concurrent_queue<uint32_t> blacklist_queue;
+#endif // __OOP__
+
 
 
 BOOL LoadNpcapDlls()
@@ -35,6 +34,9 @@ BOOL LoadNpcapDlls()
 
 	return TRUE;
 }
+#ifdef __OOP__
+#else
+
 
 unsigned short CalcChecksumIp(IpHeader* pIpHeader)
 {
@@ -109,7 +111,7 @@ unsigned short CalcChecksumTcp(IpHeader* pIpHeader, TcpHeader* pTcpHeader)
 	return (USHORT)~(dwSum & 0x0000FFFF);
 }
 
-void packet_Reset(const TcpHeader* pTcp,pcap_t* adhandle)
+void packet_Reset(const TcpHeader* pTcp,const pcap_t* adhandle)
 {
 	unsigned char frameData[1514] = { 0 };
 	int msgSize = 0;
@@ -163,19 +165,19 @@ void packet_Reset(const TcpHeader* pTcp,pcap_t* adhandle)
 	pTcpHeader->checksum = CalcChecksumTcp(pIpHeader, pTcpHeader);
 
 	/* Send down the packet */
-	if (pcap_sendpacket(adhandle,	// Adapter
+	if (pcap_sendpacket(const_cast<pcap_t*>(adhandle),	// Adapter
 		frameData, // buffer with the packet
 		sizeof(EtherHeader) + sizeof(IpHeader) + sizeof(TcpHeader)
 	) != 0)
 	{
-		fprintf(stderr, "\nError sending the packet: %s\n", pcap_geterr(adhandle));
+		fprintf(stderr, "\nError sending the packet: %s\n", pcap_geterr(const_cast<pcap_t*>(adhandle)));
 	}
 
 
 
 }
 
-void packet_detect(const int ThreadID,pcap_t* adhandle)
+void packet_detect(const int ThreadID,const pcap_t* adhandle)
 {
 
 	auto last_check_time = std::chrono::steady_clock::now();
@@ -448,25 +450,46 @@ void packet_handler(u_char* param,
 		ntohs(pIpHeader->length) - ipHeaderLen - tcpHeaderSize);
 	puts(szMessage);*/
 }
+#endif
+
+PcapManager PcapAdmin;
+std::vector<map<uint32_t, pair<Packet, int>>> worker_queues;
 
 int main()
 {
+	if (!LoadNpcapDlls())
+	{
+		fprintf(stderr, "Couldn't load Npcap\n");
+		exit(1);
+	}
+
+	if (PcapAdmin.SetDevice() == false)
+	{
+		return -1;
+	}
+	else
+	{
+		PacketMonitor pMonitor;
+
+	}
+
+
+#ifdef __OOP__
+#else
 	pcap_if_t* alldevs{};
 	pcap_if_t* d{};
 	int inum;
 	int i = 0;
 	pcap_t* adhandle;
 	char errbuf[PCAP_ERRBUF_SIZE];
+
 	Payloadlist.reserve(1000);
 	worker_queues.resize(NUM_WORKER_THREADS);
 	CaptureContext my_context;
-	//for (int i = 0; i < NUM_WORKER_THREADS; i++)
-	//	worker_queues
-	if (!LoadNpcapDlls())
-	{
-		fprintf(stderr, "Couldn't load Npcap\n");
-		exit(1);
-	}
+#endif // __OOP__
+	
+#ifdef __OOP__
+#else
 
 
 	/* Retrieve the device list */
@@ -565,21 +588,18 @@ int main()
 	}	/* start the capture */
 
 	////캡쳐한 패킷 버퍼에서 뽑아내 추출하는 스레드풀 생성
-	const int threadCnt = NUM_WORKER_THREADS;//1;//std::thread::hardware_concurrency();
+	//const int threadCnt = std::thread::hardware_concurrency();
 	std::vector<thread> ThreadPool;
-	for (int i = 0; i < threadCnt; i++)
-		ThreadPool.push_back(thread(packet_detect, i,adhandle));
+	for (int i = 0; i < NUM_WORKER_THREADS; i++)
+		ThreadPool.push_back(thread(packet_detect, i, PcapAdmin.GetHandle()));
 
+	pcap_loop(const_cast<pcap_t*>(PcapAdmin.GetHandle()), 0, packet_handler, (u_char*)&my_context);
 
-	pcap_loop(adhandle, 0, packet_handler, (u_char*)&my_context);
-
-
-
-	for (int i = 0; i < threadCnt; i++)
+	for (int i = 0; i < NUM_WORKER_THREADS; i++)
 		if (ThreadPool[i].joinable())
 			ThreadPool[i].join();
 
 	pcap_close(adhandle);
-
+#endif // __OOP__
 	return 0;
 }

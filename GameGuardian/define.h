@@ -1,4 +1,5 @@
 #pragma once
+#include <pcap.h>
 #include <thread>
 #include <vector>
 #include <concurrent_queue.h>
@@ -9,7 +10,13 @@
 #include<Windows.h>
 #include <queue>
 #include <set>
+#include <tchar.h>
+#include <WinSock2.h>
+#include <time.h>
+#pragma comment(lib, "wpcap")
+#pragma comment(lib, "ws2_32")
 #define __VER2__
+#define __OOP__
 using namespace std;
 
 const int NUM_WORKER_THREADS = 8;

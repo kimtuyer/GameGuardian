@@ -142,9 +142,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="GameGuardin.cpp" />
+    <ClCompile Include="PacketMonitor.cpp" />
+    <ClCompile Include="PcapManager.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="define.h" />
+    <ClInclude Include="Global.h" />
+    <ClInclude Include="PacketMonitor.h" />
+    <ClInclude Include="PcapManager.h" />
+    <ClInclude Include="Util.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
