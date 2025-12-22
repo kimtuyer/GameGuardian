@@ -2,17 +2,17 @@
 
 #include "define.h"
 #include "Global.h"
-//#include "PacketMonitor.h"
-#include "PacketCapture.h"
-#include "PacketDetect.h"
+#include "PacketMonitor.h"
+//#include "PacketCapture.h"
+//#include "PacketDetect.h"
 vector<char*> Payloadlist;
 //vector<char*> PacketBuffer;
 vector<Packet>local_buffer;
 Concurrency::concurrent_queue<Packet> PacketBuffer;
 map<uint32_t, int> IPList;
 
-std::vector<map<uint32_t, pair<Packet, int>>> worker_queues;
-concurrency::concurrent_queue<uint32_t> blacklist_queue;
+//std::vector<map<uint32_t, pair<Packet, int>>> worker_queues;
+//concurrency::concurrent_queue<uint32_t> blacklist_queue;
 mutex m1[NUM_WORKER_THREADS];
 
 
@@ -472,9 +472,11 @@ int main()
 	}
 	else
 	{
-		PacketDetect Detect;
-		PacketCapture Capture;
-		//PacketMonitor pMonitor;
+		/*PacketDetect Detect;
+		PacketCapture Capture;*/
+		PacketMonitor pMonitor;
+		if (pMonitor.Initialize())
+			pMonitor.Run();
 
 	}
 

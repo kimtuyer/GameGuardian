@@ -1,6 +1,7 @@
 #include "PacketDetect.h"
 //#include "Global.h"
-PacketDetect::PacketDetect()
+PacketDetect::PacketDetect(std::vector<map<uint32_t, pair<Packet, int>>>& worker_queues, concurrency::concurrent_queue<uint32_t>& blacklist_queue)
+:m_pWorker_queues(worker_queues), m_pBlacklist_queue(blacklist_queue) 
 {
 	for (int i = 0; i < NUM_WORKER_THREADS; i++)
 		ThreadPool.push_back(thread(&PacketDetect::packet_detect, this, i, PcapAdmin.GetHandle()));
@@ -35,12 +36,12 @@ void PacketDetect::packet_detect(const int ThreadID, const pcap_t* adhandle)
 
 		{
 			lock_guard<mutex> local_m(m1[ThreadID]);
-			if (worker_queues[ThreadID].empty())
+			if (m_pWorker_queues[ThreadID].empty())
 			{
 				this_thread::yield();
 				continue;
 			}
-			local_IPList.swap(worker_queues[ThreadID]);
+			local_IPList.swap(m_pWorker_queues[ThreadID]);
 		}
 
 		for (auto [ip, data] : local_IPList)
@@ -92,7 +93,7 @@ void PacketDetect::packet_detect(const int ThreadID, const pcap_t* adhandle)
 			if (pTcp->flags == 0x010) // Flags 비트 값이 0x010 (ACK)일 경우에만 읽고 탐지
 			{
 				packet_Reset(pTcp, adhandle);
-				blacklist_queue.push(ip);
+				m_pBlacklist_queue.push(ip);
 			}
 		}
 		local_IPList.clear();

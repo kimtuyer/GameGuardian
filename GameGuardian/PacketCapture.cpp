@@ -1,11 +1,11 @@
 #include "PacketCapture.h"
 //#include "Global.h"
-PacketCapture::PacketCapture()
-{
-	worker_queues.resize(NUM_WORKER_THREADS);
-	Run();
-}
 
+PacketCapture::PacketCapture(std::vector<map<uint32_t, pair<Packet, int>>>&worker_queues, concurrency::concurrent_queue<uint32_t>&blacklist_queue)
+	:m_pWorker_queues(worker_queues),m_pBlacklist_queue(blacklist_queue)
+{
+
+}
 PacketCapture::~PacketCapture()
 {
 }
@@ -31,7 +31,7 @@ void PacketCapture::packet_capture(const pcap_pkthdr* header, const u_char* pkt_
 	}
 	auto now = std::chrono::steady_clock::now();
 
-	while (blacklist_queue.try_pop(ip))
+	while (m_pBlacklist_queue.try_pop(ip))
 	{
 		auto last_check_time = std::chrono::steady_clock::now();
 
@@ -66,23 +66,23 @@ void PacketCapture::packet_capture(const pcap_pkthdr* header, const u_char* pkt_
 
 	{
 		std::lock_guard<mutex> lock(m1[worker_index]);
-		if (worker_queues[worker_index].contains(src_ip))
+		if (m_pWorker_queues[worker_index].contains(src_ip))
 		{
 			//클라->서버 ,서버->클라, 클라->서버 ACK 보내는 마지막 패킷 캡쳐
 			if (pTcp->flags == 0x010) // Flags 비트 값이 0x010 (ACK)일 경우에만 패킷데이터 업데이트!
 			{
-				worker_queues[worker_index][src_ip].first = data;
-				worker_queues[worker_index][src_ip].second++;
+				m_pWorker_queues[worker_index][src_ip].first = data;
+				m_pWorker_queues[worker_index][src_ip].second++;
 			}
 			else
 			{
 				// Flags 비트 값이 0x010 (ACK) 가 아닐 경우엔 카운트만 증가
-				worker_queues[worker_index][src_ip].second++;
+				m_pWorker_queues[worker_index][src_ip].second++;
 			}
 		}
 		else
 		{
-			worker_queues[worker_index].insert({ src_ip ,{data,1} });
+			m_pWorker_queues[worker_index].insert({ src_ip ,{data,1} });
 		}
 	}
 }
