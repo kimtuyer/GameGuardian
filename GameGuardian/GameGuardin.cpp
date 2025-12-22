@@ -2,18 +2,19 @@
 
 #include "define.h"
 #include "Global.h"
-#include "PacketMonitor.h"
-mutex m1[NUM_WORKER_THREADS];
+//#include "PacketMonitor.h"
+#include "PacketCapture.h"
+#include "PacketDetect.h"
 vector<char*> Payloadlist;
 //vector<char*> PacketBuffer;
 vector<Packet>local_buffer;
 Concurrency::concurrent_queue<Packet> PacketBuffer;
 map<uint32_t, int> IPList;
-#ifdef __OOP__
-#else
-std::vector<map<uint32_t, pair<Packet,int>>> worker_queues;
+
+std::vector<map<uint32_t, pair<Packet, int>>> worker_queues;
 concurrency::concurrent_queue<uint32_t> blacklist_queue;
-#endif // __OOP__
+mutex m1[NUM_WORKER_THREADS];
+
 
 
 
@@ -453,10 +454,12 @@ void packet_handler(u_char* param,
 #endif
 
 PcapManager PcapAdmin;
-std::vector<map<uint32_t, pair<Packet, int>>> worker_queues;
 
 int main()
 {
+
+
+
 	if (!LoadNpcapDlls())
 	{
 		fprintf(stderr, "Couldn't load Npcap\n");
@@ -469,7 +472,9 @@ int main()
 	}
 	else
 	{
-		PacketMonitor pMonitor;
+		PacketDetect Detect;
+		PacketCapture Capture;
+		//PacketMonitor pMonitor;
 
 	}
 

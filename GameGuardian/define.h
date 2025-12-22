@@ -71,17 +71,25 @@ typedef struct PseudoHeader {
 
 typedef struct Packet {
 
-	struct pcap_pkthdr* m_pheader;
-	u_char* m_pkt_data;
-	Packet() :m_pheader(nullptr), m_pkt_data(nullptr)
+	struct pcap_pkthdr m_pheader {};
+	vector<u_char> m_pkt_data;
+	Packet()
 	{
 
 	}
 
 	Packet(struct pcap_pkthdr* header, u_char* pkt_data)
 	{
-		m_pheader = header;
-		m_pkt_data = pkt_data;
+		if (header != nullptr && pkt_data != nullptr) {
+			// 헤더 복사 (구조체끼리 대입하면 값 복사됨)
+			m_pheader = *header;
+
+			// [핵심] 데이터 깊은 복사 (Deep Copy)
+			// vector의 assign 함수: 시작 포인터부터 길이만큼 복사해서 내 메모리에 저장
+			m_pkt_data.assign(pkt_data, pkt_data + header->caplen);
+		}
+		//m_pheader = header;
+		//m_pkt_data = pkt_data;
 	}
 
 };

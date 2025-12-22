@@ -142,13 +142,23 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="GameGuardin.cpp" />
-    <ClCompile Include="PacketMonitor.cpp" />
+    <ClCompile Include="PacketCapture.cpp" />
+    <ClCompile Include="PacketDetect.cpp" />
+    <ClCompile Include="PacketMonitor.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="PcapManager.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="define.h" />
     <ClInclude Include="Global.h" />
-    <ClInclude Include="PacketMonitor.h" />
+    <ClInclude Include="PacketCapture.h" />
+    <ClInclude Include="PacketDetect.h" />
+    <ClInclude Include="PacketMonitor.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+    </ClInclude>
     <ClInclude Include="PcapManager.h" />
     <ClInclude Include="Util.h" />
   </ItemGroup>

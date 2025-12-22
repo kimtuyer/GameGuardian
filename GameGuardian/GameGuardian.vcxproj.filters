@@ -24,8 +24,14 @@
     <ClCompile Include="PcapManager.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="PacketMonitor.cpp">
+    <ClCompile Include="PacketCapture.cpp">
       <Filter>Packet</Filter>
+    </ClCompile>
+    <ClCompile Include="PacketDetect.cpp">
+      <Filter>Packet</Filter>
+    </ClCompile>
+    <ClCompile Include="PacketMonitor.cpp">
+      <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -35,13 +41,19 @@
     <ClInclude Include="PcapManager.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="PacketMonitor.h">
-      <Filter>Packet</Filter>
-    </ClInclude>
     <ClInclude Include="Global.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Util.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="PacketCapture.h">
+      <Filter>Packet</Filter>
+    </ClInclude>
+    <ClInclude Include="PacketDetect.h">
+      <Filter>Packet</Filter>
+    </ClInclude>
+    <ClInclude Include="PacketMonitor.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>

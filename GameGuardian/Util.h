@@ -1,6 +1,6 @@
 #pragma once
 #include "define.h"
-unsigned short CalcChecksumIp(IpHeader* pIpHeader)
+inline unsigned short CalcChecksumIp(IpHeader* pIpHeader)
 {
 	unsigned char ihl = (pIpHeader->verIhl & 0x0F) << 2; //*4¿Í µ¿ÀÏ
 	unsigned short wData[30] = { 0 };
@@ -24,7 +24,7 @@ unsigned short CalcChecksumIp(IpHeader* pIpHeader)
 	return ~(dwSum & 0x0000FFFF);
 }
 
-unsigned short CalcChecksumTcp(IpHeader* pIpHeader, TcpHeader* pTcpHeader)
+inline unsigned short CalcChecksumTcp(IpHeader* pIpHeader, TcpHeader* pTcpHeader)
 {
 	PseudoHeader	pseudoHeader = { 0 };
 	unsigned short* pwPseudoHeader = (unsigned short*)&pseudoHeader;
