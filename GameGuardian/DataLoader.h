@@ -14,10 +14,10 @@ struct NetworkConfig {
 
 
     // 2. 맥 주소 정보 (RST 패킷 만들 때 필수)
-    std::string src_mac_str; // 내 PC (Attacker)
-    u_char src_mac[6];
+    //std::string src_mac_str; // 내 PC (Attacker)
+    //u_char src_mac[6];
 
-    std::string gateway_mac_str; // 공유기 or 타겟
+    std::string gateway_mac_str; // 공유기 or 서버
     u_char gateway_mac[6];
 
     // 3. 기타 설정

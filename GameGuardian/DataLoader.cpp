@@ -34,11 +34,11 @@ bool DataLoader::Load(const std::string& path, NetworkConfig& out_config) {
         //inet_pton(AF_INET, out_config.host_ip_str.c_str(), &out_config.host_ip_addr);
 
         // 2. MAC 주소 읽기
-        out_config.src_mac_str = j["network_interface"]["src_mac"];
+       /* out_config.src_mac_str = j["network_interface"]["src_mac"];*/
         out_config.gateway_mac_str = j["network_interface"]["gateway_mac"];
 
         // 문자열 MAC -> u_char[6] 변환
-        ParseMacAddress(out_config.src_mac_str, out_config.src_mac);
+        //ParseMacAddress(out_config.src_mac_str, out_config.src_mac);
         ParseMacAddress(out_config.gateway_mac_str, out_config.gateway_mac);
 
         std::cout << "[Config] 설정 로드 완료!" << std::endl;
