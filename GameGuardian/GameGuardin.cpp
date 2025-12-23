@@ -477,6 +477,9 @@ int main()
 		PacketMonitor pMonitor;
 		if (pMonitor.Initialize())
 			pMonitor.Run();
+		else
+			return -1;
+
 
 	}
 

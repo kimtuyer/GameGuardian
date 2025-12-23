@@ -17,6 +17,7 @@
 #pragma comment(lib, "ws2_32")
 #define __VER2__
 #define __OOP__
+#define __DATA_LOADING__
 using namespace std;
 
 const int NUM_WORKER_THREADS = 8;

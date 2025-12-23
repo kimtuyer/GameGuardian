@@ -1,6 +1,8 @@
 #pragma once
 #include "define.h"
 #include "PcapManager.h"
+#include "DataLoader.h"
+
 class PacketDetect;
 class PacketCapture;
 class PacketMonitor
@@ -16,6 +18,7 @@ public:
 	
 
 private:
+	NetworkConfig m_config; // 설정 정보 저장소
 	set<uint32_t> local_blacklist;
 
 	//mutex m1[NUM_WORKER_THREADS];

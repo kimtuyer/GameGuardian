@@ -14,9 +14,12 @@ PacketMonitor::~PacketMonitor()
 
 bool PacketMonitor::Initialize()
 {
+	if (!DataLoader::Load("config.json", m_config)) {
+		return false;
+	}
 
-	m_packetCapture = make_unique<PacketCapture>(worker_queues, blacklist_queue);
-	m_packetDetect= make_unique<PacketDetect>(worker_queues, blacklist_queue);
+	m_packetCapture = make_unique<PacketCapture>(worker_queues, blacklist_queue, m_config);
+	m_packetDetect= make_unique<PacketDetect>(worker_queues, blacklist_queue, m_config);
 
 	return true;
 

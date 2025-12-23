@@ -1,7 +1,8 @@
 #include "PacketDetect.h"
 //#include "Global.h"
-PacketDetect::PacketDetect(std::vector<map<uint32_t, pair<Packet, int>>>& worker_queues, concurrency::concurrent_queue<uint32_t>& blacklist_queue)
-:m_pWorker_queues(worker_queues), m_pBlacklist_queue(blacklist_queue) 
+PacketDetect::PacketDetect(std::vector<map<uint32_t, pair<Packet, int>>>& worker_queues, concurrency::concurrent_queue<uint32_t>& blacklist_queue,
+	const NetworkConfig&config)
+:m_pWorker_queues(worker_queues), m_pBlacklist_queue(blacklist_queue) ,m_config(config)
 {
 	for (int i = 0; i < NUM_WORKER_THREADS; i++)
 		ThreadPool.push_back(thread(&PacketDetect::packet_detect, this, i, PcapAdmin.GetHandle()));
@@ -92,7 +93,7 @@ void PacketDetect::packet_detect(const int ThreadID, const pcap_t* adhandle)
 			//클라->서버 ,서버->클라, 클라->서버 ACK 보내는 마지막 패킷 캡쳐
 			if (pTcp->flags == 0x010) // Flags 비트 값이 0x010 (ACK)일 경우에만 읽고 탐지
 			{
-				packet_Reset(pTcp, adhandle);
+				packet_Reset(pTcp, raw_ptr, adhandle);
 				m_pBlacklist_queue.push(ip);
 			}
 		}
@@ -100,11 +101,35 @@ void PacketDetect::packet_detect(const int ThreadID, const pcap_t* adhandle)
 	}
 }
 
-void PacketDetect::packet_Reset(const TcpHeader* pTcp, const pcap_t* adhandle)
+void PacketDetect::packet_Reset(const TcpHeader* pTcp, const u_char* pktdata ,const pcap_t* adhandle)
 {
+	EtherHeader* pEther = (EtherHeader*)pktdata;
+	IpHeader* pSrcIpHeader = (IpHeader*)(pktdata + sizeof(EtherHeader));
+
 	unsigned char frameData[1514] = { 0 };
-	int msgSize = 0;
+	IpHeader* pIpHeader = (IpHeader*)(frameData + sizeof(EtherHeader));
+	int ipHeaderLen = 20;
+
+	TcpHeader* pTcpHeader =
+		(TcpHeader*)(frameData + sizeof(EtherHeader) + ipHeaderLen);
 	EtherHeader* pEtherHeader = (EtherHeader*)frameData;
+#ifdef __DATA_LOADING__
+
+	// MAC 주소 설정
+	memcpy(pEtherHeader->srcMac, m_config.src_mac, 6);
+	memcpy(pEtherHeader->dstMac, m_config.gateway_mac, 6); // Gateway or Target
+
+
+	// IP 설정
+	// m_config.server_ip_addr은 이미 Network Order로 변환되어 있으므로 그대로 복사
+	memcpy(pIpHeader->dstIp, &m_config.server_ip_addr, 4);
+	memcpy(pIpHeader->srcIp, pSrcIpHeader->srcIp, 4);
+
+	// Port 설정
+	pTcpHeader->dstPort = htons(m_config.server_port);
+#else
+
+	int msgSize = 0;
 	pEtherHeader->dstMac[0] = 0x00; pEtherHeader->dstMac[1] = 0x0C;
 	pEtherHeader->dstMac[2] = 0x29; pEtherHeader->dstMac[3] = 0x72;
 	pEtherHeader->dstMac[4] = 0x01; pEtherHeader->dstMac[5] = 0x51;
@@ -112,10 +137,11 @@ void PacketDetect::packet_Reset(const TcpHeader* pTcp, const pcap_t* adhandle)
 	pEtherHeader->srcMac[0] = 0x00; pEtherHeader->srcMac[1] = 0x50;
 	pEtherHeader->srcMac[2] = 0x56; pEtherHeader->srcMac[3] = 0xC0;
 	pEtherHeader->srcMac[4] = 0x00; pEtherHeader->srcMac[5] = 0x01;
+#endif // __DATA_LOADING__
 
 	pEtherHeader->type = htons(0x0800);
 
-	IpHeader* pIpHeader = (IpHeader*)(frameData + sizeof(EtherHeader));
+	//IpHeader* pIpHeader = (IpHeader*)(frameData + sizeof(EtherHeader));
 	pIpHeader->verIhl = 0x45;
 	pIpHeader->tos = 0x00;
 	pIpHeader->length = htons(40);
@@ -125,6 +151,8 @@ void PacketDetect::packet_Reset(const TcpHeader* pTcp, const pcap_t* adhandle)
 	pIpHeader->protocol = 6; // TCP
 	pIpHeader->checksum = 0x0000;
 
+#ifdef __DATA_LOADING__
+#else
 	pIpHeader->srcIp[0] = 192;
 	pIpHeader->srcIp[1] = 168;
 	pIpHeader->srcIp[2] = 41;
@@ -134,13 +162,11 @@ void PacketDetect::packet_Reset(const TcpHeader* pTcp, const pcap_t* adhandle)
 	pIpHeader->dstIp[1] = 168;
 	pIpHeader->dstIp[2] = 41;
 	pIpHeader->dstIp[3] = 128;
-
-	int ipHeaderLen = 20;
-	TcpHeader* pTcpHeader =
-		(TcpHeader*)(frameData + sizeof(EtherHeader) + ipHeaderLen);
+	pTcpHeader->dstPort = htons(25000);
+#endif
+	
 
 	pTcpHeader->srcPort = htons(ntohs(pTcp->srcPort)); //반드시 일치
-	pTcpHeader->dstPort = htons(25000);
 	pTcpHeader->seq = (pTcp->seq); // 반드시 일치 , pTcp->seq 값은 이미 Net-order 순서이므로 변환없이 그대로 복사
 	pTcpHeader->ack = 0;
 	pTcpHeader->data = 0x50;
