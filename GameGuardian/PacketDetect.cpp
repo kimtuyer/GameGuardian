@@ -116,10 +116,10 @@ void PacketDetect::packet_Reset(const TcpHeader* pTcp, const u_char* pktdata ,co
 #ifdef __DATA_LOADING__
 
 	// MAC 주소 설정
-	memcpy(pEtherHeader->srcMac, m_config.src_mac, 6);
-	memcpy(pEtherHeader->dstMac, m_config.gateway_mac, 6); // Gateway or Target
+	memcpy(pEtherHeader->srcMac, pEther->srcMac, 6); //패킷에 담긴 클라 mac 주소
+	memcpy(pEtherHeader->dstMac, m_config.gateway_mac, 6); // 전송할 서버 mac 주소
 
-
+	
 	// IP 설정
 	// m_config.server_ip_addr은 이미 Network Order로 변환되어 있으므로 그대로 복사
 	memcpy(pIpHeader->dstIp, &m_config.server_ip_addr, 4);
