@@ -1,12 +1,10 @@
 #include "PacketDetect.h"
 //#include "Global.h"
-PacketDetect::PacketDetect(std::vector<map<uint32_t, pair<Packet, int>>>& worker_queues, concurrency::concurrent_queue<uint32_t>& blacklist_queue,
-	const NetworkConfig&config)
-:m_pWorker_queues(worker_queues), m_pBlacklist_queue(blacklist_queue) ,m_config(config)
+
+PacketDetect::PacketDetect(SharedContext& context) :ctx(context)
 {
 	for (int i = 0; i < NUM_WORKER_THREADS; i++)
 		ThreadPool.push_back(thread(&PacketDetect::packet_detect, this, i, PcapAdmin.GetHandle()));
-
 }
 
 PacketDetect::~PacketDetect()
@@ -24,25 +22,31 @@ void PacketDetect::packet_detect(const int ThreadID, const pcap_t* adhandle)
 	map<uint32_t, pair<Packet, int>> local_IPList;
 	map<uint32_t, pair<Packet, int>> accomulate_stat;
 
+	auto& my_ctx = ctx.workers[ThreadID];
 
 	while (bRunnig)
 	{
-		//1초 주기로 ip별 패킷 카운트 수 초기화
-		auto now = std::chrono::steady_clock::now();
-		if (chrono::duration_cast<std::chrono::seconds>(now - last_check_time).count() >= 1) {
-			last_check_time = now;
-			accomulate_stat.clear();
-		}
-		//printf("--- 1초 경과: 카운트 리셋 ---\n");
-
 		{
-			lock_guard<mutex> local_m(m1[ThreadID]);
-			if (m_pWorker_queues[ThreadID].empty())
-			{
-				this_thread::yield();
-				continue;
+			std::unique_lock<std::mutex> lock(my_ctx->q_mutex);
+
+			// (조건: 내 큐가 비어있지 않거나, 종료 신호가 왔을 때)
+			my_ctx->q_cv.wait(lock, [&] {
+				return !my_ctx->packetlist.empty() || !bRunnig;
+				});
+
+			if (!bRunnig) break;
+
+			//1초 주기로 ip별 패킷 카운트 수 초기화
+			auto now = std::chrono::steady_clock::now();
+			if (chrono::duration_cast<std::chrono::seconds>(now - last_check_time).count() >= 1) {
+				last_check_time = now;
+				accomulate_stat.clear();
 			}
-			local_IPList.swap(m_pWorker_queues[ThreadID]);
+			//printf("--- 1초 경과: 카운트 리셋 ---\n");
+
+			local_IPList.swap(my_ctx->packetlist);
+
+			lock.unlock(); // 락 해제
 		}
 
 		for (auto [ip, data] : local_IPList)
@@ -90,18 +94,18 @@ void PacketDetect::packet_detect(const int ThreadID, const pcap_t* adhandle)
 			/*if (accomulate_stat[ip].second < 100)
 				continue;*/
 
-			//클라->서버 ,서버->클라, 클라->서버 ACK 보내는 마지막 패킷 캡쳐
+				//클라->서버 ,서버->클라, 클라->서버 ACK 보내는 마지막 패킷 캡쳐
 			if (pTcp->flags == 0x010) // Flags 비트 값이 0x010 (ACK)일 경우에만 읽고 탐지
 			{
 				packet_Reset(pTcp, raw_ptr, adhandle);
-				m_pBlacklist_queue.push(ip);
+				ctx.blacklist_queue.push(ip);
 			}
 		}
 		local_IPList.clear();
 	}
 }
 
-void PacketDetect::packet_Reset(const TcpHeader* pTcp, const u_char* pktdata ,const pcap_t* adhandle)
+void PacketDetect::packet_Reset(const TcpHeader* pTcp, const u_char* pktdata, const pcap_t* adhandle)
 {
 	EtherHeader* pEther = (EtherHeader*)pktdata;
 	IpHeader* pSrcIpHeader = (IpHeader*)(pktdata + sizeof(EtherHeader));
@@ -117,16 +121,15 @@ void PacketDetect::packet_Reset(const TcpHeader* pTcp, const u_char* pktdata ,co
 
 	// MAC 주소 설정
 	memcpy(pEtherHeader->srcMac, pEther->srcMac, 6); //패킷에 담긴 클라 mac 주소
-	memcpy(pEtherHeader->dstMac, m_config.gateway_mac, 6); // 전송할 서버 mac 주소
+	memcpy(pEtherHeader->dstMac, ctx.config.gateway_mac, 6); // 전송할 서버 mac 주소
 
-	
 	// IP 설정
 	// m_config.server_ip_addr은 이미 Network Order로 변환되어 있으므로 그대로 복사
-	memcpy(pIpHeader->dstIp, &m_config.server_ip_addr, 4);
+	memcpy(pIpHeader->dstIp, &ctx.config.server_ip_addr, 4);
 	memcpy(pIpHeader->srcIp, pSrcIpHeader->srcIp, 4);
 
 	// Port 설정
-	pTcpHeader->dstPort = htons(m_config.server_port);
+	pTcpHeader->dstPort = htons(ctx.config.server_port);
 #else
 
 	int msgSize = 0;
@@ -164,7 +167,6 @@ void PacketDetect::packet_Reset(const TcpHeader* pTcp, const u_char* pktdata ,co
 	pIpHeader->dstIp[3] = 128;
 	pTcpHeader->dstPort = htons(25000);
 #endif
-	
 
 	pTcpHeader->srcPort = htons(ntohs(pTcp->srcPort)); //반드시 일치
 	pTcpHeader->seq = (pTcp->seq); // 반드시 일치 , pTcp->seq 값은 이미 Net-order 순서이므로 변환없이 그대로 복사

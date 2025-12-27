@@ -162,6 +162,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
     </ClInclude>
     <ClInclude Include="PcapManager.h" />
+    <ClInclude Include="SharedContext.h" />
     <ClInclude Include="Util.h" />
   </ItemGroup>
   <ItemGroup>

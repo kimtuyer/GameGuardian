@@ -13,7 +13,7 @@ map<uint32_t, int> IPList;
 
 //std::vector<map<uint32_t, pair<Packet, int>>> worker_queues;
 //concurrency::concurrent_queue<uint32_t> blacklist_queue;
-mutex m1[NUM_WORKER_THREADS];
+//mutex m1[NUM_WORKER_THREADS];
 
 
 

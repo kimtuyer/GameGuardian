@@ -1,11 +1,8 @@
 #include "PacketCapture.h"
 //#include "Global.h"
 
-PacketCapture::PacketCapture(std::vector<map<uint32_t, pair<Packet, int>>>&worker_queues, concurrency::concurrent_queue<uint32_t>&blacklist_queue,
-	const NetworkConfig& config)
-	:m_pWorker_queues(worker_queues),m_pBlacklist_queue(blacklist_queue), m_config(config)
+PacketCapture::PacketCapture(SharedContext& context):ctx(context)
 {
-
 }
 PacketCapture::~PacketCapture()
 {
@@ -32,7 +29,7 @@ void PacketCapture::packet_capture(const pcap_pkthdr* header, const u_char* pkt_
 	}
 	auto now = std::chrono::steady_clock::now();
 
-	while (m_pBlacklist_queue.try_pop(ip))
+	while (ctx.blacklist_queue.try_pop(ip))
 	{
 		auto last_check_time = std::chrono::steady_clock::now();
 
@@ -58,34 +55,36 @@ void PacketCapture::packet_capture(const pcap_pkthdr* header, const u_char* pkt_
 	//	return; //툴 자신이 생성해 보낸 패킷은 제외!
 
 	//일단 내 포트폴리오 게임서버 포트로 설정 ,클라는 각각 당연히 포트가 다를것.
-	if (ntohs(pTcp->srcPort) != m_config.server_port && ntohs(pTcp->dstPort) != m_config.server_port) //ntohs(pTcp->srcPort) != 25000 &&
+	if (ntohs(pTcp->srcPort) != ctx.config.server_port && ntohs(pTcp->dstPort) != ctx.config.server_port) //ntohs(pTcp->srcPort) != 25000 &&
 		return;
 
 	Packet data(const_cast<pcap_pkthdr*>(header), const_cast<u_char*>(pkt_data));
 
 	int worker_index = src_ip % NUM_WORKER_THREADS;
+	auto& target_worker = ctx.workers[worker_index];
 
 	{
-		std::lock_guard<mutex> lock(m1[worker_index]);
-		if (m_pWorker_queues[worker_index].contains(src_ip))
+		std::lock_guard<mutex> lock(target_worker->q_mutex);
+		if (target_worker->packetlist.contains(src_ip))
 		{
 			//클라->서버 ,서버->클라, 클라->서버 ACK 보내는 마지막 패킷 캡쳐
 			if (pTcp->flags == 0x010) // Flags 비트 값이 0x010 (ACK)일 경우에만 패킷데이터 업데이트!
 			{
-				m_pWorker_queues[worker_index][src_ip].first = data;
-				m_pWorker_queues[worker_index][src_ip].second++;
+				target_worker->packetlist[src_ip].first = data;
+				target_worker->packetlist[src_ip].second++;
 			}
 			else
 			{
 				// Flags 비트 값이 0x010 (ACK) 가 아닐 경우엔 카운트만 증가
-				m_pWorker_queues[worker_index][src_ip].second++;
+				target_worker->packetlist[src_ip].second++;
 			}
 		}
 		else
 		{
-			m_pWorker_queues[worker_index].insert({ src_ip ,{data,1} });
+			target_worker->packetlist.insert({ src_ip ,{data,1} });
 		}
 	}
+	target_worker->q_cv.notify_one();
 }
 
 void PacketCapture::packet_handler(u_char* user, const pcap_pkthdr* header, const u_char* pkt_data)

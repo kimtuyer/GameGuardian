@@ -3,11 +3,13 @@
 #include "Global.h"
 #include "PcapManager.h"
 #include "DataLoader.h"
+#include "SharedContext.h"
 class PacketDetect
 {
 public:
 	PacketDetect(std::vector<map<uint32_t, pair<Packet, int>>>&, concurrency::concurrent_queue<uint32_t>&,
-		const NetworkConfig&);
+		SharedContext&);
+	PacketDetect(SharedContext&);
 	~PacketDetect();
 
 	void packet_detect(const int ThreadID, const pcap_t* adhandle);
@@ -15,11 +17,11 @@ public:
 
 private:
 	std::vector<thread> ThreadPool;
-	std::vector<map<uint32_t, pair<Packet, int>>>& m_pWorker_queues;
-	concurrency::concurrent_queue<uint32_t>& m_pBlacklist_queue;
+	/*std::vector<map<uint32_t, pair<Packet, int>>>& m_pWorker_queues;
+	concurrency::concurrent_queue<uint32_t>& m_pBlacklist_queue;*/
 
-	const NetworkConfig& m_config;
-
+	//const NetworkConfig& m_config;
+	SharedContext& ctx; // ÂüÁ¶
 	bool bRunnig{ true };
 };
 
