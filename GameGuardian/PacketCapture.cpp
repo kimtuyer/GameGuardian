@@ -58,7 +58,7 @@ void PacketCapture::packet_capture(const pcap_pkthdr* header, const u_char* pkt_
 	//	return; //툴 자신이 생성해 보낸 패킷은 제외!
 
 	//일단 내 포트폴리오 게임서버 포트로 설정 ,클라는 각각 당연히 포트가 다를것.
-	if (ntohs(pTcp->srcPort) != 25000 && ntohs(pTcp->dstPort) != 25000) //ntohs(pTcp->srcPort) != 25000 &&
+	if (ntohs(pTcp->srcPort) != m_config.server_port && ntohs(pTcp->dstPort) != m_config.server_port) //ntohs(pTcp->srcPort) != 25000 &&
 		return;
 
 	Packet data(const_cast<pcap_pkthdr*>(header), const_cast<u_char*>(pkt_data));

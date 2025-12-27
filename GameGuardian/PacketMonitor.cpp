@@ -3,9 +3,13 @@
 #include "Util.h"
 #include "PacketCapture.h"
 #include "PacketDetect.h"
-PacketMonitor::PacketMonitor()
+
+PacketMonitor::PacketMonitor(const NetworkConfig& config):m_config(config)
 {
 	worker_queues.resize(NUM_WORKER_THREADS);
+
+	m_packetCapture = make_unique<PacketCapture>(worker_queues, blacklist_queue, m_config);
+	m_packetDetect = make_unique<PacketDetect>(worker_queues, blacklist_queue, m_config);
 }
 
 PacketMonitor::~PacketMonitor()
@@ -14,9 +18,10 @@ PacketMonitor::~PacketMonitor()
 
 bool PacketMonitor::Initialize()
 {
-	if (!DataLoader::Load("config.json", m_config)) {
+	/*if (!DataLoader::Load("config.json", m_config)) {
+		printf("Can not Loading Config.json!");
 		return false;
-	}
+	}*/
 
 	m_packetCapture = make_unique<PacketCapture>(worker_queues, blacklist_queue, m_config);
 	m_packetDetect= make_unique<PacketDetect>(worker_queues, blacklist_queue, m_config);

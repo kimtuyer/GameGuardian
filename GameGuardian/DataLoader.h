@@ -1,5 +1,5 @@
 #pragma once
-#include "Global.h"
+#include "define.h"
 #include <nlohmann/json.hpp>
 // 실제 패킷 변조에 사용할 바이너리 데이터와 원본 문자열을 모두 가짐
 struct NetworkConfig {

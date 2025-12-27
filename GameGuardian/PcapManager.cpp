@@ -54,7 +54,7 @@ bool PcapManager::SetDevice()
 	for (d = alldevs, i = 0; i < inum - 1; d = d->next, i++);
 
 
-	CreateHandle(d, alldevs,errbuf);
+	return CreateHandle(d, alldevs,errbuf);
 	
 	
 }
@@ -95,10 +95,43 @@ bool PcapManager::CreateHandle(const pcap_if_t* d , const pcap_if_t* alldevs, ch
 
 
 
+	//pcap_set_immediate_mode(adhandle, 1);
 	// 커널 버퍼에 최소 16KB가 쌓일 때까지 리턴하지 않음 (Context Switching 감소)
 	if (pcap_setmintocopy(adhandle, 16 * 1024) != 0) {
 		fprintf(stderr, "Warning: pcap_setmintocopy failed.\n");
 	}	/* start the capture */
 
+
+
+	if (!DataLoader::Load("config.json", m_config)) {
+		printf("Can not Loading Config.json!");
+		return false;
+	}
+
+	struct bpf_program fcode;
+	std::string filter_exp = "tcp port " + std::to_string(m_config.server_port); // "tcp port 25000"
+
+	// 1. 필터 규칙 컴파일
+	if (pcap_compile(adhandle, &fcode, filter_exp.c_str(), 1, 0xffffff) < 0) {
+		fprintf(stderr, "Error compiling filter: %s\n", pcap_geterr(adhandle));
+		//fprintf(stderr, "Unable to compile packet filter. Check the syntax.\n");
+		return false;
+	}
+
+	// 2. 필터 적용 (이 시점부터 25000번 포트가 아닌 패킷은 아예 handler로 안 넘어옴)
+	if (pcap_setfilter(adhandle, &fcode) < 0) {
+		fprintf(stderr, "Error setting the filter.\n");
+		return false;
+	}
+
+	printf("[Info] Kernel Filter Applied: %s\n", filter_exp.c_str());
+
+
 	return true;
+}
+
+const NetworkConfig& PcapManager::GetConfig()
+{
+	return m_config;
+	// TODO: 여기에 return 문을 삽입합니다.
 }

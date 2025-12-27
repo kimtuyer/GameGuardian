@@ -472,13 +472,13 @@ int main()
 	}
 	else
 	{
-		/*PacketDetect Detect;
-		PacketCapture Capture;*/
-		PacketMonitor pMonitor;
-		if (pMonitor.Initialize())
+
+		PacketMonitor pMonitor(PcapAdmin.GetConfig());
+		pMonitor.Run();
+		/*if (pMonitor.Initialize())
 			pMonitor.Run();
 		else
-			return -1;
+			return -1;*/
 
 
 	}
