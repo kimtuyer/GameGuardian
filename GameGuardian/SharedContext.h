@@ -7,6 +7,12 @@ struct WorkerContext {
     // 1. 전용 큐
     std::map<uint32_t, std::pair<Packet, PacketCount>> packetlist;
 
+    std::set<uint32_t> whitelist;
+    std::map<uint32_t, std::chrono::steady_clock::time_point> greylist;
+    // ★ 추가: MAC별 통계 (Key: MAC주소 정수값, Value: 패킷 수)
+    std::map<uint64_t, int> mac_stat;
+
+
     // 2. 전용 락과 알림벨 (이 스레드만 쳐다봄)
     std::mutex q_mutex;
     std::condition_variable q_cv;
@@ -29,6 +35,11 @@ struct SharedContext {
     // cpu코어간에 같은 캐시라인에 속해 False Sharing 성능 우려 있음. 
     //mutex m1[NUM_WORKER_THREADS];
     //std::condition_variable cv[NUM_WORKER_THREADS];
+
+    atomic<bool> g_emergency_mode{false};
+    std::atomic<int> g_syn_count;
+    std::atomic<int> g_ack_count;
+
 
     // 3. 설정 파일
     const NetworkConfig config;

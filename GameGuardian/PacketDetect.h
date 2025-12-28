@@ -23,7 +23,7 @@ private:
 	concurrency::concurrent_queue<uint32_t>& m_pBlacklist_queue;*/
 
 	//const NetworkConfig& m_config;
-	SharedContext& ctx; // 참조
+	SharedContext& g_ctx; // 참조
 	bool bRunnig{ true };
 };
 

@@ -1,7 +1,7 @@
 #include "PacketDetect.h"
 //#include "Global.h"
 
-PacketDetect::PacketDetect(SharedContext& context) :ctx(context)
+PacketDetect::PacketDetect(SharedContext& context) :g_ctx(context)
 {
 	for (int i = 0; i < NUM_WORKER_THREADS; i++)
 		ThreadPool.push_back(thread(&PacketDetect::packet_detect, this, i, PcapAdmin.GetHandle()));
@@ -22,7 +22,7 @@ void PacketDetect::packet_detect(const int ThreadID, const pcap_t* adhandle)
 	map<uint32_t, pair<Packet, PacketCount>> local_IPList;
 	map<uint32_t, pair<Packet, PacketCount>> accomulate_stat;
 
-	auto& my_ctx = ctx.workers[ThreadID];
+	auto& my_ctx = g_ctx.workers[ThreadID];
 
 	while (bRunnig)
 	{
@@ -41,6 +41,7 @@ void PacketDetect::packet_detect(const int ThreadID, const pcap_t* adhandle)
 			if (chrono::duration_cast<std::chrono::seconds>(now - last_check_time).count() >= 1) {
 				last_check_time = now;
 				accomulate_stat.clear();
+				my_ctx->mac_stat.clear();
 			}
 			//printf("--- 1초 경과: 카운트 리셋 ---\n");
 
@@ -92,45 +93,101 @@ void PacketDetect::packet_detect(const int ThreadID, const pcap_t* adhandle)
 				Segmentsize,
 				packet.m_pheader.len);
 
-			
-			// [검사 1] SYN Flood 감지 (우선순위 높음)
-			// TCP 헤더의  SYN Flag 검사
-			if (accomulate_stat[ip].second.syn_count > 10)
+			if (g_ctx.g_emergency_mode)
 			{
-				// 만약 syn_count > 20 -> BLACKLIST
-				packet_Reset(pTcp, raw_ptr, adhandle);
-				//ctx.blacklist_queue.push(ip);
-				local_blacklist.insert(ip);
-				continue;
-			}
+				//SYN 패킷일 경우에 확인
+				if (!(pTcp->flags & 0x02))
+					continue;
 
-			//클라->서버 ,서버->클라, 클라->서버 ACK 보내는 마지막 패킷 캡쳐
-			if (pTcp->flags == 0x010) // Flags 비트 값이 0x010 (ACK)일 경우에만 읽고 탐지
+				// 1. 이미 검증된 IP인가? (Whitelist / Established)
+				if (my_ctx->whitelist.contains(ip)) {
+					continue; // 통과
+				}
+
+				// 2. 재전송 대기 목록(Greylist)에 있는가?
+				if (my_ctx->greylist.contains(ip)) {
+					
+					my_ctx->greylist.erase(ip);       // 대기 목록에서 제거
+					my_ctx->whitelist.insert(ip); // 정식 유저로 승격
+					continue; // 통과 (서버가 처리하게 둠)
+				}
+
+				// 3. 처음 보는 IP인가? -> First Drop 실행
+				else {
+					// [서버 보호] 서버에게 RST를 보내서 백로그 비우기
+					// 주의: packet_Reset은 목적지를 '서버'로 해서 보내야 함
+					packet_Reset(pTcp, raw_ptr, adhandle);
+
+					// [대기열 등록] "너 한 번만 더 보내봐. 그럼 믿어줄게"
+					my_ctx->greylist[ip] = std::chrono::steady_clock::now();
+
+					// [클라이언트 무시] 클라에게는 RST를 보내지 않음 (중요!)
+
+					// 로그: "First Drop 실행: IP ..."
+					continue;
+				}
+
+			}			
+			else
 			{
-				// [검사 2] 이미 블랙리스트 등록된 ip 감지
-				if (local_blacklist.contains(ip))
+				// [검사 1] SYN Flood 감지 (우선순위 높음)
+				// TCP 헤더의  SYN Flag 검사
+				if (accomulate_stat[ip].second.syn_count > 10)
 				{
+					// 만약 syn_count > 20 -> BLACKLIST
 					packet_Reset(pTcp, raw_ptr, adhandle);
 					//ctx.blacklist_queue.push(ip);
 					local_blacklist.insert(ip);
 					continue;
 				}
-				// [검사 3] 과도한 트래픽(DDoS) 감지
-				if (accomulate_stat[ip].second.TotalCount > 100)
-				{
-					packet_Reset(pTcp, raw_ptr, adhandle);
-					//ctx.blacklist_queue.push(ip);
-					local_blacklist.insert(ip);
-					continue;
-				}
-				
-			}
 
-		
-			
+				//클라->서버 ,서버->클라, 클라->서버 ACK 보내는 마지막 패킷 캡쳐
+				if (pTcp->flags == 0x010) // Flags 비트 값이 0x010 (ACK)일 경우에만 읽고 탐지
+				{
+					// [검사 2] 이미 블랙리스트 등록된 ip 감지
+					if (local_blacklist.contains(ip))
+					{
+						packet_Reset(pTcp, raw_ptr, adhandle);
+						//ctx.blacklist_queue.push(ip);
+						local_blacklist.insert(ip);
+						continue;
+					}
+					// [검사 3] 과도한 트래픽(DDoS) 감지
+					if (accomulate_stat[ip].second.TotalCount > 100)
+					{
+						packet_Reset(pTcp, raw_ptr, adhandle);
+						//ctx.blacklist_queue.push(ip);
+						local_blacklist.insert(ip);
+						continue;
+					}
+
+				}
+
+
+			}
 
 		}
 		local_IPList.clear();
+
+		// [검사 4] MAC 기반 SYN Flood 탐지 (IP Spoofing 방어)
+		// 주의: 실제 환경에선 Gateway MAC일 수 있으므로 임계값을 아주 높게 잡거나, 
+		// 내부망 테스트용임을 인지해야 함.
+		for (auto const& [macKey, count] : my_ctx->mac_stat)
+		{
+			if (count > 500) // 예: 한 MAC에서 초당 500개 이상? 수상함
+			{
+				// 해당 MAC에서 들어오는 모든 패킷 차단 로직 필요
+				// 하지만 IP가 계속 바뀌므로 blacklist_queue(IP)에 넣는 건 의미가 없음.
+				// 여기서는 "경고"를 띄우거나, "글로벌 방어 모드"를 켜는 트리거로 써야 함.
+				printf("[Warning] MAC Flood Detected! MAC: %llx, Count: %d\n", macKey, count);
+
+				// ★ 대응 전략:
+				// IP가 위조되었으므로 특정 IP를 차단하는 건 불가능.
+				// 따라서 잠시동안 "모든 SYN 패킷"에 대해 엄격한 검사(SYN Cookie 등)를 수행하거나
+				// 현재 테스트 환경이라면 해당 MAC을 블랙리스트에 등록할 수 있음.
+			}
+		}
+
 	}
 }
 
@@ -150,15 +207,15 @@ void PacketDetect::packet_Reset(const TcpHeader* pTcp, const u_char* pktdata, co
 
 	// MAC 주소 설정
 	memcpy(pEtherHeader->srcMac, pEther->srcMac, 6); //패킷에 담긴 클라 mac 주소
-	memcpy(pEtherHeader->dstMac, ctx.config.gateway_mac, 6); // 전송할 서버 mac 주소
+	memcpy(pEtherHeader->dstMac, g_ctx.config.gateway_mac, 6); // 전송할 서버 mac 주소
 
 	// IP 설정
 	// m_config.server_ip_addr은 이미 Network Order로 변환되어 있으므로 그대로 복사
-	memcpy(pIpHeader->dstIp, &ctx.config.server_ip_addr, 4);
+	memcpy(pIpHeader->dstIp, &g_ctx.config.server_ip_addr, 4);
 	memcpy(pIpHeader->srcIp, pSrcIpHeader->srcIp, 4);
 
 	// Port 설정
-	pTcpHeader->dstPort = htons(ctx.config.server_port);
+	pTcpHeader->dstPort = htons(g_ctx.config.server_port);
 #else
 
 	int msgSize = 0;

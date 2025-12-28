@@ -1,5 +1,13 @@
 #pragma once
 #include "define.h"
+
+inline uint64_t MacToUint64(const u_char* mac) {
+	uint64_t result = 0;
+	// MAC 주소 6바이트를 복사 (하위 6바이트 사용)
+	memcpy(&result, mac, 6);
+	return result;
+}
+
 inline unsigned short CalcChecksumIp(IpHeader* pIpHeader)
 {
 	unsigned char ihl = (pIpHeader->verIhl & 0x0F) << 2; //*4와 동일
