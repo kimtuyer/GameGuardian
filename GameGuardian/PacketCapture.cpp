@@ -20,27 +20,35 @@ void PacketCapture::packet_capture(const pcap_pkthdr* header, const u_char* pkt_
 	int ipHeaderLen = (pIpHeader->verIhl & 0x0F) * 4;
 	TcpHeader* pTcp = (TcpHeader*)(pkt_data + sizeof(EtherHeader) + ipHeaderLen);
 
-	//이미 차단된 계정이 다시 접속을 시도할경우? 도 생각해서 차단해야함!
-	if (local_blacklist.contains(src_ip))
-	{
-		//차단된 계정이 다시 접속을 시도해 연결 수립하는 ack 패킷은 다시 캡쳐 후 탐지해서 차단!
-		if (pTcp->flags != 0x010)
-			return;
-	}
+	////이미 차단된 계정이 다시 접속을 시도할경우? 도 생각해서 차단해야함!
+	//if (local_blacklist.contains(src_ip))
+	//{
+	//	//차단된 계정이 다시 접속을 시도해 연결 수립하는 ack 패킷은 다시 캡쳐 후 탐지해서 차단!
+	//	//syn 패킷 공격을 할 경우도 고려해야함.		
+	//	if (pTcp->flags != 0x010)
+	//	{
+	//		if (!(pTcp->flags & 0x02))
+	//		{
+
+	//		}
+	//		else
+	//			return;
+	//	}
+	//}
 	auto now = std::chrono::steady_clock::now();
 
-	while (ctx.blacklist_queue.try_pop(ip))
-	{
-		auto last_check_time = std::chrono::steady_clock::now();
+	//while (ctx.blacklist_queue.try_pop(ip))
+	//{
+	//	auto last_check_time = std::chrono::steady_clock::now();
 
-		//1초이상 경과시 다음에 처리
-		if (chrono::duration_cast<std::chrono::seconds>(now - last_check_time).count() >= 1)
-		{
-			break;
-		}
+	//	//1초이상 경과시 다음에 처리
+	//	if (chrono::duration_cast<std::chrono::seconds>(now - last_check_time).count() >= 1)
+	//	{
+	//		break;
+	//	}
 
-		local_blacklist.insert(ip);
-	}
+	//	local_blacklist.insert(ip);
+	//}
 
 	if (pEther->type != 0x0008)
 		return;
@@ -67,21 +75,24 @@ void PacketCapture::packet_capture(const pcap_pkthdr* header, const u_char* pkt_
 		std::lock_guard<mutex> lock(target_worker->q_mutex);
 		if (target_worker->packetlist.contains(src_ip))
 		{
+			target_worker->packetlist[src_ip].second.TotalCount++;
+
 			//클라->서버 ,서버->클라, 클라->서버 ACK 보내는 마지막 패킷 캡쳐
 			if (pTcp->flags == 0x010) // Flags 비트 값이 0x010 (ACK)일 경우에만 패킷데이터 업데이트!
 			{
 				target_worker->packetlist[src_ip].first = data;
-				target_worker->packetlist[src_ip].second++;
 			}
-			else
+			else if (pTcp->flags & 0x02) //SYN Flag , SYN Flood 고려
 			{
-				// Flags 비트 값이 0x010 (ACK) 가 아닐 경우엔 카운트만 증가
-				target_worker->packetlist[src_ip].second++;
-			}
+				target_worker->packetlist[src_ip].second.syn_count++;
+
+			}		
 		}
 		else
 		{
-			target_worker->packetlist.insert({ src_ip ,{data,1} });
+			int syn_count = (pTcp->flags & 0x02) ? 1 : 0;
+
+			target_worker->packetlist.insert({ src_ip ,{data,PacketCount(1,syn_count)}});
 		}
 	}
 	target_worker->q_cv.notify_one();

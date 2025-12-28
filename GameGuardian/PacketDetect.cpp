@@ -19,8 +19,8 @@ void PacketDetect::packet_detect(const int ThreadID, const pcap_t* adhandle)
 	auto last_check_time = std::chrono::steady_clock::now();
 
 	//int size = 500;
-	map<uint32_t, pair<Packet, int>> local_IPList;
-	map<uint32_t, pair<Packet, int>> accomulate_stat;
+	map<uint32_t, pair<Packet, PacketCount>> local_IPList;
+	map<uint32_t, pair<Packet, PacketCount>> accomulate_stat;
 
 	auto& my_ctx = ctx.workers[ThreadID];
 
@@ -51,7 +51,8 @@ void PacketDetect::packet_detect(const int ThreadID, const pcap_t* adhandle)
 
 		for (auto [ip, data] : local_IPList)
 		{
-			accomulate_stat[ip].second += data.second;
+			accomulate_stat[ip].second.TotalCount += data.second.TotalCount;
+			accomulate_stat[ip].second.syn_count += data.second.syn_count;
 
 			auto packet = data.first;
 
@@ -91,15 +92,43 @@ void PacketDetect::packet_detect(const int ThreadID, const pcap_t* adhandle)
 				Segmentsize,
 				packet.m_pheader.len);
 
-			/*if (accomulate_stat[ip].second < 100)
-				continue;*/
+			
+			// [검사 1] SYN Flood 감지 (우선순위 높음)
+			// TCP 헤더의  SYN Flag 검사
+			if (accomulate_stat[ip].second.syn_count > 10)
+			{
+				// 만약 syn_count > 20 -> BLACKLIST
+				packet_Reset(pTcp, raw_ptr, adhandle);
+				//ctx.blacklist_queue.push(ip);
+				local_blacklist.insert(ip);
+				continue;
+			}
 
-				//클라->서버 ,서버->클라, 클라->서버 ACK 보내는 마지막 패킷 캡쳐
+			//클라->서버 ,서버->클라, 클라->서버 ACK 보내는 마지막 패킷 캡쳐
 			if (pTcp->flags == 0x010) // Flags 비트 값이 0x010 (ACK)일 경우에만 읽고 탐지
 			{
-				packet_Reset(pTcp, raw_ptr, adhandle);
-				ctx.blacklist_queue.push(ip);
+				// [검사 2] 이미 블랙리스트 등록된 ip 감지
+				if (local_blacklist.contains(ip))
+				{
+					packet_Reset(pTcp, raw_ptr, adhandle);
+					//ctx.blacklist_queue.push(ip);
+					local_blacklist.insert(ip);
+					continue;
+				}
+				// [검사 3] 과도한 트래픽(DDoS) 감지
+				if (accomulate_stat[ip].second.TotalCount > 100)
+				{
+					packet_Reset(pTcp, raw_ptr, adhandle);
+					//ctx.blacklist_queue.push(ip);
+					local_blacklist.insert(ip);
+					continue;
+				}
+				
 			}
+
+		
+			
+
 		}
 		local_IPList.clear();
 	}

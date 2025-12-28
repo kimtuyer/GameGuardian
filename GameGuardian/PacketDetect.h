@@ -17,6 +17,8 @@ public:
 
 private:
 	std::vector<thread> ThreadPool;
+	set<uint32_t> local_blacklist;
+
 	/*std::vector<map<uint32_t, pair<Packet, int>>>& m_pWorker_queues;
 	concurrency::concurrent_queue<uint32_t>& m_pBlacklist_queue;*/
 

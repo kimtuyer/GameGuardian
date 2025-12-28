@@ -5,7 +5,7 @@
 // 워커 스레드 1명이 가질 전용 데이터 세트
 struct WorkerContext {
     // 1. 전용 큐
-    std::map<uint32_t, std::pair<Packet, int>> packetlist;
+    std::map<uint32_t, std::pair<Packet, PacketCount>> packetlist;
 
     // 2. 전용 락과 알림벨 (이 스레드만 쳐다봄)
     std::mutex q_mutex;

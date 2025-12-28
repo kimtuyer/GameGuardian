@@ -94,6 +94,23 @@ typedef struct Packet {
 	}
 
 };
+struct PacketCount
+{
+	PacketCount()
+		:TotalCount(0), syn_count(0)
+	{
+
+	}
+	PacketCount(int total, int syncount)
+		:TotalCount(total),syn_count(syncount)
+	{
+
+	}
+	int TotalCount{}; //flag 비트 관계없는 전체 패킷 개수
+	int syn_count{}; //syn flag인 패킷 개수
+
+};
+
 // 생산자(Producer)가 패킷 처리에 필요한 모든 '상태'를 담는 가방
 struct CaptureContext {
 	// 로컬 블랙리스트 (락 필요 없음, 생산자만 봄)
