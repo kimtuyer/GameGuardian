@@ -115,15 +115,10 @@ void PacketDetect::packet_detect(const int ThreadID, const pcap_t* adhandle)
 				// 3. 처음 보는 IP인가? -> First Drop 실행
 				else {
 					// [서버 보호] 서버에게 RST를 보내서 백로그 비우기
-					// 주의: packet_Reset은 목적지를 '서버'로 해서 보내야 함
 					packet_Reset(pTcp, raw_ptr, adhandle);
 
 					// [대기열 등록] "너 한 번만 더 보내봐. 그럼 믿어줄게"
 					my_ctx->greylist[ip] = std::chrono::steady_clock::now();
-
-					// [클라이언트 무시] 클라에게는 RST를 보내지 않음 (중요!)
-
-					// 로그: "First Drop 실행: IP ..."
 					continue;
 				}
 
@@ -153,7 +148,7 @@ void PacketDetect::packet_detect(const int ThreadID, const pcap_t* adhandle)
 						continue;
 					}
 					// [검사 3] 과도한 트래픽(DDoS) 감지
-					if (accomulate_stat[ip].second.TotalCount > 100)
+					//if (accomulate_stat[ip].second.TotalCount > 100)
 					{
 						packet_Reset(pTcp, raw_ptr, adhandle);
 						//ctx.blacklist_queue.push(ip);
