@@ -1,6 +1,7 @@
 #include "PacketDetect.h"
+#include "CLogManager.h"
 //#include "Global.h"
-
+// CLogManager 인스턴스 생성 (스레드 간 공유)
 PacketDetect::PacketDetect(SharedContext& context) :g_ctx(context)
 {
 	for (int i = 0; i < NUM_WORKER_THREADS; i++)
@@ -54,6 +55,7 @@ void PacketDetect::packet_detect(const int ThreadID, const pcap_t* adhandle)
 		{
 			accomulate_stat[ip].second.TotalCount += data.second.TotalCount;
 			accomulate_stat[ip].second.syn_count += data.second.syn_count;
+			accomulate_stat[ip].second.ack_count += data.second.ack_count;
 
 			auto packet = data.first;
 
@@ -99,8 +101,30 @@ void PacketDetect::packet_detect(const int ThreadID, const pcap_t* adhandle)
 				if (!(pTcp->flags & 0x02))
 					continue;
 
+				if (local_blacklist.contains(ip))
+				{
+					packet_Reset(pTcp, raw_ptr, adhandle);
+					CLogManager::GetInstance().Log("SYN_FLOOD", reinterpret_cast<uintptr_t>(&packet), ipToString(ip));
+					//ctx.blacklist_queue.push(ip);
+					continue;
+				}
+
 				// 1. 이미 검증된 IP인가? (Whitelist / Established)
 				if (my_ctx->whitelist.contains(ip)) {
+
+					// ACK 비율 확인
+					if (accomulate_stat[ip].second.ack_count < (accomulate_stat[ip].second.syn_count * 0.1))
+					{
+						//동일 ip SYN-Flood 공격 판단 화이트리스트 제거!
+						my_ctx->whitelist.erase(ip);
+						local_blacklist.insert(ip);
+
+						CLogManager::GetInstance().Log("Whitelist_Out", reinterpret_cast<uintptr_t>(&packet), ipToString(ip));
+
+						packet_Reset(pTcp, raw_ptr, adhandle);
+						continue;
+					}
+					else
 					continue; // 통과
 				}
 
@@ -109,6 +133,8 @@ void PacketDetect::packet_detect(const int ThreadID, const pcap_t* adhandle)
 					
 					my_ctx->greylist.erase(ip);       // 대기 목록에서 제거
 					my_ctx->whitelist.insert(ip); // 정식 유저로 승격
+					CLogManager::GetInstance().Log("Whitelist_In", reinterpret_cast<uintptr_t>(&packet), ipToString(ip));
+
 					continue; // 통과 (서버가 처리하게 둠)
 				}
 
@@ -133,6 +159,11 @@ void PacketDetect::packet_detect(const int ThreadID, const pcap_t* adhandle)
 					packet_Reset(pTcp, raw_ptr, adhandle);
 					//ctx.blacklist_queue.push(ip);
 					local_blacklist.insert(ip);
+					CLogManager::GetInstance().Log("Blacklist_IN", reinterpret_cast<uintptr_t>(&packet), ipToString(ip));
+
+					// 로그 작성
+					CLogManager::GetInstance().Log("SYN_FLOOD", reinterpret_cast<uintptr_t>(&packet), ipToString(ip));
+
 					continue;
 				}
 
@@ -144,7 +175,6 @@ void PacketDetect::packet_detect(const int ThreadID, const pcap_t* adhandle)
 					{
 						packet_Reset(pTcp, raw_ptr, adhandle);
 						//ctx.blacklist_queue.push(ip);
-						local_blacklist.insert(ip);
 						continue;
 					}
 					// [검사 3] 과도한 트래픽(DDoS) 감지
@@ -153,6 +183,8 @@ void PacketDetect::packet_detect(const int ThreadID, const pcap_t* adhandle)
 						packet_Reset(pTcp, raw_ptr, adhandle);
 						//ctx.blacklist_queue.push(ip);
 						local_blacklist.insert(ip);
+						CLogManager::GetInstance().Log("DDoS_ATTACK", reinterpret_cast<uintptr_t>(&packet), ipToString(ip));
+
 						continue;
 					}
 
@@ -175,7 +207,8 @@ void PacketDetect::packet_detect(const int ThreadID, const pcap_t* adhandle)
 				// 하지만 IP가 계속 바뀌므로 blacklist_queue(IP)에 넣는 건 의미가 없음.
 				// 여기서는 "경고"를 띄우거나, "글로벌 방어 모드"를 켜는 트리거로 써야 함.
 				printf("[Warning] MAC Flood Detected! MAC: %llx, Count: %d\n", macKey, count);
-
+				CLogManager::GetInstance().Log("MAC_FLOOD", macToString(macKey));
+				//g_ctx.g_emergency_mode = true;
 				// ★ 대응 전략:
 				// IP가 위조되었으므로 특정 IP를 차단하는 건 불가능.
 				// 따라서 잠시동안 "모든 SYN 패킷"에 대해 엄격한 검사(SYN Cookie 등)를 수행하거나

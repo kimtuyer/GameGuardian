@@ -13,6 +13,9 @@
 #include <tchar.h>
 #include <WinSock2.h>
 #include <time.h>
+#include <iomanip>
+#include <sstream>
+#include <cstdint>
 #pragma comment(lib, "wpcap")
 #pragma comment(lib, "ws2_32")
 #define __VER2__
@@ -108,6 +111,7 @@ struct PacketCount
 	}
 	int TotalCount{}; //flag 비트 관계없는 전체 패킷 개수
 	int syn_count{}; //syn flag인 패킷 개수
+	int ack_count{}; //syn flag인 패킷 개수
 
 };
 

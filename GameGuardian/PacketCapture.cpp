@@ -21,7 +21,7 @@ void PacketCapture::packet_capture(const pcap_pkthdr* header, const u_char* pkt_
 	int ipHeaderLen = (pIpHeader->verIhl & 0x0F) * 4;
 	TcpHeader* pTcp = (TcpHeader*)(pkt_data + sizeof(EtherHeader) + ipHeaderLen);
 
-	if (ctx.g_syn_count < 5000)
+	if (ctx.g_syn_count < 1000)
 	{
 		// ACK 비율 확인
 		if (ctx.g_ack_count < (ctx.g_syn_count * 0.1))
@@ -101,6 +101,8 @@ void PacketCapture::packet_capture(const pcap_pkthdr* header, const u_char* pkt_
 			if (ack_count==1) // Flags 비트 값이 0x010 (ACK)일 경우에만 패킷데이터 업데이트!
 			{
 				target_worker->packetlist[src_ip].first = data;
+				target_worker->packetlist[src_ip].second.ack_count++;
+
 			}
 			else if (syn_count==1) //SYN Flag , SYN Flood 고려
 			{

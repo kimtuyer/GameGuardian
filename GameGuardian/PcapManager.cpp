@@ -95,11 +95,11 @@ bool PcapManager::CreateHandle(const pcap_if_t* d , const pcap_if_t* alldevs, ch
 
 
 
-	//pcap_set_immediate_mode(adhandle, 1);
-	// 커널 버퍼에 최소 16KB가 쌓일 때까지 리턴하지 않음 (Context Switching 감소)
-	if (pcap_setmintocopy(adhandle, 16 * 1024) != 0) {
-		fprintf(stderr, "Warning: pcap_setmintocopy failed.\n");
-	}	/* start the capture */
+	pcap_set_immediate_mode(adhandle, 1);
+	//// 커널 버퍼에 최소 16KB가 쌓일 때까지 리턴하지 않음 (Context Switching 감소)
+	//if (pcap_setmintocopy(adhandle, 16 * 1024) != 0) {
+	//	fprintf(stderr, "Warning: pcap_setmintocopy failed.\n");
+	//}	/* start the capture */
 
 
 

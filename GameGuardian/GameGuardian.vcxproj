@@ -141,6 +141,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="CLogManager.cpp" />
     <ClCompile Include="DataLoader.cpp" />
     <ClCompile Include="GameGuardin.cpp" />
     <ClCompile Include="PacketCapture.cpp" />
@@ -152,6 +153,7 @@
     <ClCompile Include="PcapManager.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CLogManager.h" />
     <ClInclude Include="DataLoader.h" />
     <ClInclude Include="define.h" />
     <ClInclude Include="Global.h" />

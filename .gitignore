@@ -363,3 +363,6 @@ MigrationBackup/
 FodyWeavers.xsd
 /config_portfoloi.json
 /config_서버클라반대버전.json
+/.continue
+/GameGuardian/repomix-output.xml
+/repomix-output.xml

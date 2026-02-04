@@ -3,10 +3,12 @@
 #include "Util.h"
 #include "PacketCapture.h"
 #include "PacketDetect.h"
+#include "CLogManager.h"
 
 PacketMonitor::PacketMonitor(const NetworkConfig& config)
 {
 	//worker_queues.resize(NUM_WORKER_THREADS);
+	CLogManager::GetInstance().SetLogFilePath("C:/Users/kimtu/source/repos/GameGuardian/logs/GameGuard_Log.txt");
 
 	m_context = make_unique<SharedContext>(config);
 
@@ -34,6 +36,8 @@ bool PacketMonitor::Initialize()
 
 void PacketMonitor::Run()
 {
+	CLogManager::GetInstance().Log("Guard_Start!");
+
 	m_packetCapture.get()->Run();
 
 }

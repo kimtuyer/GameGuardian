@@ -1,7 +1,7 @@
 {
   "server_info": {
     "ip": "192.168.41.1",
-    "port": 7777
+    "port": 25000
   },
   "network_interface": {
     "gateway_mac": "00:50:56:C0:00:01"
